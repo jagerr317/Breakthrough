@@ -1,0 +1,466 @@
+import java.util.ArrayList;
+import java.util.List;
+
+class Move {
+
+    int next_pos_x;
+    int next_pos_y;
+    int old_pos_x;
+    int old_pos_y;
+
+    public Move(int x, int y, int w, int z) {
+        this.next_pos_x = x;
+        this.next_pos_y = y;
+        this.old_pos_x = w;
+        this.old_pos_y = z;
+    }
+
+    public String ToString() {
+        return "régi pozíció : " + old_pos_x + ".sor" + old_pos_y + ".oszlop" + "   új pozíció: " + next_pos_x + ".sor" + next_pos_y + ".oszlop";
+    }
+
+}
+
+class Node {
+    // az aktuális játékhelyzet pontozásához szükséges konstansok.
+    final int Piece_Danger_value = 10;
+    final int Piece_count_value = 2;
+    final int Piece_Mobility_value = 5;
+    final int Piece_Horizontal_lineup_value = 10;
+    final int Piece_Vertical_lineup_value = 15;
+    final int Piece_Attack_value = 20;
+    final int Piece_Defense_value = 15;
+    final int Piece_Winning_Position_value = 500;
+    // az aktuális állás táblája.
+    char[][] tabla;
+    int value;// az aktuális állás pontszáma.
+    ArrayList<Move> Valid_moves = new ArrayList<>();// a lehetséges lépések.
+
+    public Node(char[][] tabla) {
+        this.tabla = tabla;
+    }
+
+    public ArrayList<Move> Generate_Valid_Moves_W() {// a fehér bábuk összes lehetséges lépése az adott játékállásból.
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (tabla[i][j] == 'W') {
+                    if (i != 0) {
+                        if (tabla[i - 1][j] == '-') {
+                            Valid_moves.add(new Move(i - 1, j, i, j));
+                        }
+                        if (j > 0 && j < 7) {
+                            if (tabla[i - 1][j + 1] == 'B') {
+                                Valid_moves.add(new Move(i - 1, j + 1, i, j));
+                            }
+                            if (tabla[i - 1][j - 1] == 'B') {
+                                Valid_moves.add(new Move(i - 1, j - 1, i, j));
+                            }
+                        }
+                        if (j == 0) {
+                            if (tabla[i - 1][j + 1] == 'B') {
+                                Valid_moves.add(new Move(i - 1, j + 1, i, j));
+                            }
+                        }
+                        if (j == 7) {
+                            if (tabla[i - 1][j - 1] == 'B') {
+                                Valid_moves.add(new Move(i - 1, j - 1, i, j));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return Valid_moves;
+    }
+
+    public ArrayList<Move> Generate_Valid_Moves_B() {// a fekete bábuk összes lehetséges lépése az adott játékállásból.
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (tabla[i][j] == 'B') {
+                    if (i != 7) {
+                        if (tabla[i + 1][j] == '-') {
+                            Valid_moves.add(new Move(i + 1, j, i, j));
+                        }
+                        if (j > 0 && j < 7) {
+                            if (tabla[i + 1][j + 1] == 'W') {
+                                Valid_moves.add(new Move(i + 1, j + 1, i, j));
+                            }
+                            if (tabla[i + 1][j - 1] == 'W') {
+                                Valid_moves.add(new Move(i + 1, j - 1, i, j));
+                            }
+                        }
+                        if (j == 0) {
+                            if (tabla[i + 1][j + 1] == 'W') {
+                                Valid_moves.add(new Move(i + 1, j + 1, i, j));
+                            }
+                        }
+                        if (j == 7) {
+                            if (tabla[i + 1][j - 1] == 'W') {
+                                Valid_moves.add(new Move(i + 1, j - 1, i, j));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return Valid_moves;
+    }
+    // a következő lépés megtétele.
+    public int[] Move() {
+        int[] result = alfabeta(1, "Player", Integer.MIN_VALUE, Integer.MAX_VALUE, 0, 0);
+        return new int[]{result[1], result[2]};
+
+    }
+
+    public int[] alfabeta(int depth, String whos_turn, int alpha, int beta, int old_pos_x, int old_pos_y) { // rekurzív algoritmus meghívása. amely megvizsgálja a lépéseket előre és eldönti melyik al egjobb.
+        List<Move> lista;                                           
+        if (whos_turn.equals("Player")) {
+            lista = new ArrayList<Move>(Generate_Valid_Moves_B());// attól függően kinek a köre van legenerálni a lépéseket.
+        } else {
+            lista = new ArrayList<Move>(Generate_Valid_Moves_W());
+        }
+
+        int score;
+        int bestRow = old_pos_x;//az uj álláshoz vezető lépések.
+        int bestCol = old_pos_y;
+
+        if (lista.isEmpty() || depth == 0) {// ha elértük a levélelemet visszatéritem az adott játékállás pontszámát.
+            //Gameover vagy a mélységet elértük.
+            if (whos_turn.equals("Player")) {
+                score = calculate_current_value_W(tabla) - calculate_current_value_B(tabla);
+            } else {
+                score = calculate_current_value_B(tabla) - calculate_current_value_W(tabla);
+            }
+            return new int[]{score, bestRow, bestCol};
+        } else {            // egyébként végigmegyek a lehetséges következő lépéseken.
+            for (Move act : lista) {
+                move_piece(act.old_pos_x, act.old_pos_y, act.next_pos_x, act.next_pos_y);
+                if (whos_turn.equals("Player")) {
+                    int[] tomb = alfabeta(depth - 1, "Opponent", alpha, beta, act.next_pos_x, act.next_pos_y);
+                    score = tomb[0];
+                    if (score > alpha) {
+                        alpha = score;
+                        bestRow = tomb[1];
+                        bestCol = tomb[2];
+                    }
+                } else {//Opponent
+                    int[] tomb = alfabeta(depth - 1, "Player", alpha, beta, act.next_pos_x, act.next_pos_y);
+                    score = tomb[0];
+                    if (score < beta) {
+                        beta = score;
+                        bestRow = tomb[1];
+                        bestCol = tomb[2];
+                    }
+                }
+                //lépés visszavonása.
+                move_piece(act.next_pos_x, act.next_pos_y, act.old_pos_x, act.old_pos_y);
+                if (alpha >= beta) {
+                    break;
+                }
+            }
+            return new int[]{(whos_turn.equals("Player")) ? alpha : beta, bestRow, bestCol}; // ha a végére értem a vizsgálatnak visszatéritem a legjobb lépést.
+        }
+
+    }
+
+    public int calculate_current_value_B(char[][] tabla) { // az adott játékállás pontozása. (B pontozása.)
+        int Value = 0;
+
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (tabla[i][j] == 'B') {
+                    Value += Piece_count_value;
+                    Value += Piece_Danger_value * (i + 1);
+                    //Mobility Value - hány helyre léphet az adott bábu az aktuális pozíciójáról.
+                    if (j > 0 && j < 7 && i < 7) {
+                        if (tabla[i + 1][j - 1] == 'W') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i + 1][j + 1] == 'W') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i + 1][j] == '-') {
+                            Value += Piece_Mobility_value;
+                        }
+                    }
+                    if (j == 0 && i < 7) {
+                        if (tabla[i + 1][j + 1] == 'W') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i + 1][j] == '-') {
+                            Value += Piece_Mobility_value;
+                        }
+                    }
+                    if (j == 7 && i < 7) {
+                        if (tabla[i + 1][j - 1] == 'W') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i + 1][j] == '-') {
+                            Value += Piece_Mobility_value;
+                        }
+                    }
+                    //függőleges eggyüttállás.
+                    if (i > 0 && i < 7) {
+                        if (tabla[i + 1][j] == 'B') {
+                            Value += Piece_Vertical_lineup_value;
+                        }
+                        if (tabla[i - 1][j] == 'B') {
+                            Value += Piece_Vertical_lineup_value;
+                        }
+                    }
+                    if (i == 0) {
+                        if (tabla[i + 1][j] == 'B') {
+                            Value += Piece_Vertical_lineup_value;
+                        }
+                    }
+                    //Vízszintes eggyüttállás
+                    if (j > 0 && j < 7) {
+                        if (tabla[i][j + 1] == 'B') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                        if (tabla[i][j - 1] == 'B') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                    }
+                    if (j == 0) {
+                        if (tabla[i][j + 1] == 'B') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                    }
+                    if (j == 7) {
+                        if (tabla[i][j - 1] == 'B') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                    }
+
+                    //Támadás érték - ha le tud ütni egy ellenséges bábut.
+                    if (i < 7 && (j > 0 && j < 7)) {
+                        if (tabla[i + 1][j + 1] == 'W') {
+                            Value += Piece_Attack_value;
+                        }
+                        if (tabla[i + 1][j - 1] == 'W') {
+                            Value += Piece_Attack_value;
+                        }
+                    }
+                    if (i < 7 && j == 0) {
+                        if (tabla[i + 1][j + 1] == 'W') {
+                            Value += Piece_Attack_value;
+                        }
+                    }
+                    if (i < 7 && j == 7) {
+                        if (tabla[i + 1][j - 1] == 'W') {
+                            Value += Piece_Attack_value;
+                        }
+                    }
+                    //Védekezés érték 
+                    if (i < 7 && (j > 0 && j < 7)) {
+                        if (tabla[i + 1][j + 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                        if (tabla[i + 1][j - 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                    }
+                    if (i < 7 && j == 0) {
+                        if (tabla[i + 1][j + 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                    }
+                    if (i < 7 && j == 7) {
+                        if (tabla[i + 1][j - 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                    }
+                    //nyerő pozíció
+                    if (i == 7) {
+                        Value += Piece_Winning_Position_value;
+                    }
+                }
+            }
+        }
+
+        return Value;
+    }
+
+    public int calculate_current_value_W(char[][] tabla) {// az adott játékállás pontozása. (W pontozása.)
+        int Value = 0;
+
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                if (tabla[i][j] == 'W') {
+                    Value += Piece_count_value;
+                    Value += Piece_Danger_value * Math.abs((i - 7 + 1));
+                    
+                    if (j > 0 && j < 7 && i > 0) {
+                        if (tabla[i - 1][j - 1] == 'B') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i - 1][j + 1] == 'B') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i - 1][j] == '-') {
+                            Value += Piece_Mobility_value;
+                        }
+                    }
+                    if (j == 0 && i > 0) {
+                        if (tabla[i - 1][j + 1] == 'B') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i - 1][j] == '-') {
+                            Value += Piece_Mobility_value;
+                        }
+                    }
+                    if (j == 7 && i > 0) {
+                        if (tabla[i - 1][j - 1] == 'B') {
+                            Value += Piece_Mobility_value;
+                        }
+                        if (tabla[i - 1][j] == '-') {
+                            Value += Piece_Mobility_value;
+                        }
+                    }
+                    
+                    if (i > 0 && i < 7) {
+                        if (tabla[i + 1][j] == 'W') {
+                            Value += Piece_Vertical_lineup_value;
+                        }
+                        if (tabla[i - 1][j] == 'W') {
+                            Value += Piece_Vertical_lineup_value;
+                        }
+                    }
+                    if (i == 7) {
+                        if (tabla[i - 1][j] == 'W') {
+                            Value += Piece_Vertical_lineup_value;
+                        }
+                    }
+                   
+                    if (j > 0 && j < 7) {
+                        if (tabla[i][j + 1] == 'W') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                        if (tabla[i][j - 1] == 'W') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                    }
+                    if (j == 0) {
+                        if (tabla[i][j + 1] == 'W') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                    }
+                    if (j == 7) {
+                        if (tabla[i][j - 1] == 'W') {
+                            Value += Piece_Horizontal_lineup_value;
+                        }
+                    }
+
+                    if (i > 0 && (j > 0 && j < 7)) {
+                        if (tabla[i - 1][j + 1] == 'B') {
+                            Value += Piece_Attack_value;
+                        }
+                        if (tabla[i - 1][j - 1] == 'B') {
+                            Value += Piece_Attack_value;
+                        }
+                    }
+                    if (i > 0 && j == 0) {
+                        if (tabla[i - 1][j + 1] == 'B') {
+                            Value += Piece_Attack_value;
+                        }
+                    }
+                    if (i > 0 && j == 7) {
+                        if (tabla[i - 1][j - 1] == 'B') {
+                            Value += Piece_Attack_value;
+                        }
+                    }
+                    
+                    if (i > 0 && (j > 0 && j < 7)) {
+                        if (tabla[i - 1][j + 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                        if (tabla[i - 1][j - 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                    }
+                    if (i > 0 && j == 0) {
+                        if (tabla[i - 1][j + 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                    }
+                    if (i > 0 && j == 7) {
+                        if (tabla[i - 1][j - 1] == '-') {
+                            Value += Piece_Defense_value;
+                        }
+                    }
+                    
+                    if (i == 0) {
+                        Value += Piece_Winning_Position_value;
+                    }
+                }
+            }
+        }
+
+        return Value;
+    }
+
+    public void kiir() {        //tábal kiirása.
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                System.out.print(tabla[i][j]);
+                if (j != 7) {
+                    System.out.print(" ");
+                }
+            }
+            System.out.println("");
+        }
+    }
+    //bábuk mozgatása.
+    public void move_piece(int old_row, int old_col, int new_row, int new_col) {
+        this.tabla[new_row][new_col] = this.tabla[old_row][old_col];
+        this.tabla[old_row][old_col] = '-';
+    }
+}
+
+public class Breakthrough2 {
+
+    public static void main(String[] args) {
+        char[][] tabla_main = new char[8][8];
+
+//        for(int i = 0; i<8;i++){
+//            tabla_main[0][i] = 'B';
+//        }
+//        for(int i = 0; i<8;i++){
+//            tabla_main[7][i] = 'W';
+//        }
+//        for(int i = 1; i<7;i++){
+//            for(int j = 0;j<8;j++){
+//                tabla_main[i][j] = '-';
+//            }
+//        }
+        for (int i = 0; i < 8; i++) {
+            for (int j = 0; j < 8; j++) {
+                tabla_main[i][j] = '-';
+            }
+        }
+        tabla_main[2][0] = 'B';
+        tabla_main[2][1] = 'B';
+        tabla_main[0][2] = 'B';
+        tabla_main[0][3] = 'B';
+        tabla_main[0][4] = 'B';
+        tabla_main[0][5] = 'B';
+        tabla_main[1][6] = 'B';
+        tabla_main[1][7] = 'B';
+
+        tabla_main[7][3] = 'W';
+        tabla_main[3][0] = 'W';
+        tabla_main[7][2] = 'W';
+        tabla_main[7][4] = 'W';
+        tabla_main[3][1] = 'W';
+        tabla_main[7][6] = 'W';
+        tabla_main[7][7] = 'W';
+        tabla_main[7][5] = 'W';
+
+        Node Tabla = new Node(tabla_main);
+        Tabla.kiir();
+        for (int act : Tabla.Move()) {
+            System.out.println(act);
+        }
+    }
+}
